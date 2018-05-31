@@ -9,8 +9,7 @@ from tempest.api.compute import base
 from tempest.common.utils.linux import remote_client
 from tempest import config
 from tempest import test
-
-from mellanox_tempest_plugin.common import ping
+from mellanox_tempest_plugin.tests.scenario import ping
 
 CONF = config.CONF
 
