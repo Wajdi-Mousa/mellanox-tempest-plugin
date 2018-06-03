@@ -32,6 +32,16 @@ class Test(manager.ScenarioTest):
                 private_key=keypair['private_key'],
                 server=self.instance)
 
+        def exec_cmd_and_verify_output():
+            cmd = 'echo ' + "wajdi"
+            result = self.ssh_client.exec_command(cmd)
+            if result:
+                msg = ('Failed echo on server. '
+                       'of command "%s" is NOT "%s".' % (cmd, self.ip))
+                self.assertEqual(self.ip, result, msg)
+                return 'echo is successful!'
+
+
     @utils.services('compute', 'network')
     def test_server(self):
         keypair = self.create_keypair()
