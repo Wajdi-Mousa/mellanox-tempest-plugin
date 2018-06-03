@@ -35,12 +35,18 @@ class Test(manager.ScenarioTest):
     @utils.services('compute', 'network')
     def test_server(self):
         keypair = self.create_keypair()
+        keypair1 = self.create_keypair()
         security_group = self._create_security_group()
+        security_group1 = self._create_security_group()
         self.instance = self.create_server(
             key_name=keypair['name'],
             security_groups=[{'name': security_group['name']}])
+        self.instance1 = self.create_server(
+            key_name=keypair1['name'],
+            security_groups=[{'name': security_group1['name']}])
         self.verify_ssh(keypair)
+        self.verify_ssh(keypair1)
 
     def test_wajdi(self):
         name = "wajdi"
-        self.assertEqual(name , "wajdi")
+        self.assertEqual(name, "wajdi")
