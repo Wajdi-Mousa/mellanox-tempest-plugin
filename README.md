@@ -24,7 +24,7 @@ How to run the tests
 
 ```
 
-$ testr list-tests | grep mellanox_tempest_plugin
+$ ostestr -l | grep mellanox_tempest_plugin
 
 ```
 
