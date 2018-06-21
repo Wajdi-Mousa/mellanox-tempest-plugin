@@ -1,14 +1,27 @@
 import collections
 from tempest import config
 from tempest.scenario import manager
+from oslo_log import log as logging
 
 CONF = config.CONF
+LOG = logging.getLogger(__name__)
 Floating_IP_tuple = collections.namedtuple('Floating_IP_tuple',
                                            ['floating_ip', 'server'])
 
 
 class MellanoxTestV1(manager.NetworkScenarioTest):
+    """The MellanoxTestV1 test case use to test openstack features with
+    mellanox product , all tests in this test case applied if
+    number of compute node >= 2.
+    """
     credentials = ['primary', 'admin']
+
+    @classmethod
+    def skip_checks(cls):
+        super(MellanoxTestV1, cls).skip_checks()
+        if CONF.compute.min_compute_nodes < 2:
+            raise cls.skipException(
+                "Less than 2 compute nodes, skipping tests.")
 
     @classmethod
     def setup_credentials(cls):
@@ -31,6 +44,7 @@ class MellanoxTestV1(manager.NetworkScenarioTest):
         all_networks = self.os_admin.networks_client.list_networks()
         my_network_name = [n['name'] for n in all_networks['networks']]
         self.assertIn(self.network['name'], my_network_name)
+        LOG.debug("check network test in network list")
         self.ports = []
         port_id = None
         port_id1 = None
@@ -42,10 +56,11 @@ class MellanoxTestV1(manager.NetworkScenarioTest):
             self.ports.append({'port': port_id1})
         self.server = self._create_server(self.network, port_id)
         self.server1 = self._create_server(self.network, port_id1)
-        floating_ip = self.create_floating_ip(self.server)
-        self.floating_ip_tuple = Floating_IP_tuple(floating_ip, self.server)
-        floating_ip1 = self.create_floating_ip(self.server1)
-        self.floating_ip_tuple = Floating_IP_tuple(floating_ip1, self.server1)
+        self.floating_ip = self.create_floating_ip(self.server)
+        self.floating_ip_tuple = Floating_IP_tuple(self.floating_ip, self.server)
+        self.floating_ip1 = self.create_floating_ip(self.server1)
+        self.floating_ip_tuple = Floating_IP_tuple(self.floating_ip1, self.server1)
+        LOG.debug("create servers with floating ips")
 
     def _create_server(self, network, port_id=None):
         keypair = self.create_keypair()
@@ -66,23 +81,29 @@ class MellanoxTestV1(manager.NetworkScenarioTest):
     def _get_server_key(self, server):
         return self.keypairs[server['key_name']]['private_key']
 
-    def verify_ssh(self, keypair, server):
+    def test_ping(self, target_ip):
+        msg = "Timed out waiting for to become reachable"
+        self.assertTrue(self.ping_ip_address(target_ip['floating_ip_address']), msg)
+
+    def verify_ssh_and_test_ping(self, keypair, serv, ip):
         if self.run_ssh:
             # Obtain a floating IP if floating_ips is enabled
-            if CONF.network_feature_enabled.floating_ips:
-                self.ip = self.create_floating_ip(server)['ip']
+            if (CONF.network_feature_enabled.floating_ips):
+                self.ip = self.create_floating_ip(serv)['ip']
             else:
                 instance = self.servers_client.show_server(
-                    server['id'])['server']
+                    serv['id'])['server']
                 self.ip = self.get_server_ip(instance)
             # Check ssh
             self.ssh_client = self.get_remote_client(
                 ip_address=self.ip,
                 username=self.ssh_user,
                 private_key=keypair,
-                server=server)
+                server=serv)
+        self.test_ping(ip)
+        LOG.debug("test ping between vms")
 
-    def test_network(self):
+    def test_vms_ping(self):
         """This test checks ping between VMs in different hypervisor.
         1. Create networks , subnet , router to lunch vms
         2. Give a FIP to servers
@@ -93,8 +114,8 @@ class MellanoxTestV1(manager.NetworkScenarioTest):
         7. Check that server 1 can ping server 2
         8. Check that server 1 cannot ping server 2
         """
-        self._setup_network_and_server()
+        self._setup_network_and_servers()
         key = self._get_server_key(self.server)
-        key1 = self._get_server_key(self.server1)
-        self.verify_ssh(key, self.server)
-        self.verify_ssh(key1, self.server1)
+        key2 = self._get_server_key(self.server1)
+        self.verify_ssh_and_test_ping(key, self.server, self.floating_ip1)
+        self.verify_ssh_and_test_ping(key2, self.server1, self.floating_ip)
