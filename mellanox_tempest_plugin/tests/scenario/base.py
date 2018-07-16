@@ -6,6 +6,7 @@ from tempest.api.compute import base
 import subprocess as sp
 import paramiko
 import re
+import StringIO
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
@@ -119,7 +120,7 @@ class Base(manager.NetworkScenarioTest, base.BaseV2ComputeAdminTest):
 
             for i in hyper['hypervisors']:
                 if i['hypervisor_hostname'] == host[0]:
-                    command = 'openstack ' \
+                    command = 'openstack ' \           
                               'server show ' + host_name + \
                               ' -c \'addresses\' -f value | cut -d\"=\" -f2'
                     ip_address = self. \
@@ -149,44 +150,27 @@ class Base(manager.NetworkScenarioTest, base.BaseV2ComputeAdminTest):
         return ip_address
 
     @staticmethod
-    def _run_command_over_ssh(host, command, username="cirros", password="gocubsgo"):
+    def _run_command_over_ssh(host, command, pkey=None , username="root", password=""):
         """This Method run Command Over SSH
         Provide Host, user and pass into configuration file
         :param host
         :param command
         """
-
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-        """Assuming all check done in Setup,
-        otherwise Assert failing the test   
-        """
-        ssh.connect(host, username=username, password=password)
-        stdin, stdout, stderr = ssh.exec_command(command)  # get_pty
-        result = stdout.readline()
-        ssh.close()
-        return result
-
-    @staticmethod
-    def _run_command_over_ssh2(host, command, username="cirros", password="gocubsgo"):
-        """This Method run Command Over SSH
-        Provide Host, user and pass into configuration file
-        :param host
-        :param command
-        """
-
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(host, username=username,
-                    password=password)
+        if pkey is not None :
+                not_really_a_file = StringIO.StringIO(pkey)
+                private_key = paramiko.RSAKey.from_private_key(not_really_a_file)
+                """Assuming all check done in Setup,                                   
+                otherwise Assert failing the test                                      
+                """
+                ssh.connect(host, username=CONF.validation.image_ssh_user, pkey=private_key)
+        else :
+                ssh.connect(host, username=username,password=password)
         stdin, stdout, stderr = ssh.exec_command(command)  # get_pty
         result = stdout.read()
         ssh.close()
         return result
-        """Assuming all check done in Setup,                        
-        otherwise Assert failing the test                           
-        """
 
     def _list_hypervisors(self):
         # List of hypervisors
@@ -239,8 +223,8 @@ class Base(manager.NetworkScenarioTest, base.BaseV2ComputeAdminTest):
             self.ports.append({'port': port_id})
             self.ports.append({'port': port_id1})
         hypers = self._list_hypervisors()
-        hostname1 = hypers[1]['hypervisor_hostname']
-        hostname2 = hypers[0]['hypervisor_hostname']
+        hostname1 = hypers[0]['hypervisor_hostname']
+        hostname2 = hypers[1]['hypervisor_hostname']
         self.server = self._create_server(self.network, port_id, hostname1)
         self.server1 = self._create_server(self.network, port_id1, hostname2)
         self.floating_ip = self.create_floating_ip(self.server)
